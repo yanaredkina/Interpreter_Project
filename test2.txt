@@ -1,0 +1,14 @@
+program
+var
+    f0, f, m: int;
+begin
+    read(m);
+    f0 := 1;
+    f := f0 + 1;
+    while f <= m {"do" missed}
+        begin
+           f := f + f0;
+           f0 := f - f0
+        end;
+    write(f)
+end@
