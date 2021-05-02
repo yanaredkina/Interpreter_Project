@@ -1,7 +1,6 @@
 program
 var
-    f0, f, m: int,
-    i: bool;
+    f0, f, m: int;
 begin
     read(m);
     f0 := 1;
@@ -11,6 +10,6 @@ begin
            f := f + f0;
            f0 := f - f0
         end;
-    i := not f; {not with number}
-    write(f)
+    write(f);
+    break; {break outside of loop}
 end@

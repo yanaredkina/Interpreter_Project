@@ -7,9 +7,8 @@ begin
     f := f0 + 1;
     while f <= m do
         begin
-           f := f + f0;
+           f := f and f0; {incorrect operands}
            f0 := f - f0
         end;
-    write(f);
-    break; {break outside of loop}
+    write(f)
 end@

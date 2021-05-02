@@ -2,9 +2,9 @@ program
 var
     f0, f, m: int;
 begin
-    read(m);
+    read(n); {n not declarated}
     f0 := 1;
-    f = f0 + 1; {incorrect assign operator}
+    f := f0 + 1;
     while f <= m do
         begin
            f := f + f0;

@@ -2,10 +2,10 @@ program
 var
     f0, f, m: int;
 begin
-    read(n); {n not declarated}
+    read(m);
     f0 := 1;
     f := f0 + 1;
-    while f <= m do
+    while 5+6 do {not bool}
         begin
            f := f + f0;
            f0 := f - f0

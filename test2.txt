@@ -4,8 +4,8 @@ var
 begin
     read(m);
     f0 := 1;
-    f := f0 + 1;
-    while f <= m {"do" missed}
+    f = f0 + 1; {incorrect assign operator}
+    while f <= m do
         begin
            f := f + f0;
            f0 := f - f0
