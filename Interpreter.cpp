@@ -26,21 +26,53 @@ enum type_of_lex {
 };
  
 /* ----------------------------------- Class Lex ----------------------------------- */
- 
+
+template <class T>
+
+class Error {
+private:
+    string err_name;
+    int err_str;
+    T err_obj;
+public:
+    Error(string s, int n, T o) {
+        err_name = s;
+        err_str = n;
+        err_obj = o;
+    }
+    
+    string get_name() const {
+        return err_name;
+    }
+    
+    int get_str_num() const {
+        return err_str;
+    }
+    
+    T get_obj() const {
+        return err_obj;
+    }
+};
+
 class Lex {
 private:
     type_of_lex t_lex;
     double v_lex;
+    int str_lex;
 public:
-    Lex (type_of_lex t = LEX_NULL, double v = 0): t_lex (t), v_lex (v)  {  
+    Lex (type_of_lex t = LEX_NULL, double v = 0, int s = 0): t_lex(t), v_lex(v),  str_lex(s) {  
     }
     
-    type_of_lex  get_type () const { 
+    type_of_lex  get_type() const { 
     	  return t_lex; 
     }
     
-    int get_value () const { 
+    int get_value() const { 
     	  return v_lex; 
+    }
+    
+    int get_string() const { 
+    	  return str_lex; 
     }
     
     friend ostream & operator<< (ostream &s, Lex l);
@@ -128,6 +160,7 @@ class Scanner {
 private:
     FILE * fp;
     char c;
+    int str_num = 1;
     int look(const string buf, const char ** list) {
         int i = 0;
         while (list[i]) {
@@ -221,7 +254,9 @@ Lex Scanner::get_lex() {
         scan_char();
         switch (CS) {
             case H:
-                if (c == ' ' || c == '\n' || c== '\r' || c == '\t') {
+                if (c == ' ' || c== '\r' || c == '\t') {
+                } else if (c == '\n') {
+                    str_num++;
                 } else if (isalpha(c)) {
                     buf.push_back(c);
                     CS = IDENT;
@@ -235,16 +270,16 @@ Lex Scanner::get_lex() {
                     CS = ALE; 
                 } else if (c == '@') {
                     scan_char();
-                    return Lex(LEX_FIN);
+                    return Lex(LEX_FIN, str_num);
                 } else if (c == '!') {
                     buf.push_back(c);
                     CS = NEQ;
                 } else {
                     buf.push_back(c);
                     if ((j = look(buf, TD))) {
-                        return Lex((type_of_lex)(j + (int) LEX_FIN), j);
+                        return Lex((type_of_lex)(j + (int) LEX_FIN), j, str_num);
                     } else {
-                        throw c;
+                        throw Error <char> ("unexpected symbol", str_num, c);
                     }
                 }
                 break;
@@ -254,10 +289,10 @@ Lex Scanner::get_lex() {
                 } else {
                     ungetc(c, fp);
                     if ((j = look(buf, TW))) {
-                        return Lex((type_of_lex) j, j);
+                        return Lex((type_of_lex) j, j, str_num);
                     } else {
                         j = put(buf);
-                        return Lex(LEX_ID, j);
+                        return Lex(LEX_ID, j, str_num);
                     }
                 }
                 break;
@@ -274,36 +309,36 @@ Lex Scanner::get_lex() {
                 } else {
                     ungetc(c, fp);
                     if (f == 0) {
-                        return Lex(LEX_INT, d);
+                        return Lex(LEX_INT, d, str_num);
                     }
-                    return Lex(LEX_REAL, d + f);
+                    return Lex(LEX_REAL, d + f, str_num);
                 }
                 break;
             case COM:
                 if (c == '}') {
                     CS = H;
                 } else if (c == '@' || c == '{') {
-                    throw c;
+                    throw Error <char> ("unexpected symbol", str_num, c);;
                 }
                 break;
             case ALE:
                 if (c == '=') {
                     buf.push_back(c);
                     j = look(buf, TD);
-                    return Lex((type_of_lex) (j + (int) LEX_FIN), j);
+                    return Lex((type_of_lex) (j + (int) LEX_FIN), j, str_num);
                 } else {
                     ungetc(c, fp);
                     j = look(buf, TD);
-                    return Lex((type_of_lex) (j + (int) LEX_FIN ), j);
+                    return Lex((type_of_lex) (j + (int) LEX_FIN ), j, str_num);
                 }
                 break;
             case NEQ:
                 if (c == '=') {
                     buf.push_back(c);
                     j = look(buf, TD);
-                    return Lex(LEX_NEQ, j);
+                    return Lex(LEX_NEQ, j, str_num);
                 } else {
-                    throw '!';
+                    throw Error <char>("unexpected symbol", str_num, '!');
                 }
                 break;
     }
@@ -335,7 +370,7 @@ ostream & operator<< (ostream &s, Lex l) {
     } else if (l.t_lex == POLIZ_FGO) {
         t = "!F";
     } else {
-        throw l;
+        throw Error <Lex> ("unexpected lexeme", l.str_lex, l);
     }
     s << '(' << t << ',' << l.v_lex << ");" << endl;
     return s;
@@ -390,7 +425,7 @@ void Parser::analyze() {
     read_lex();
     P();
     if (c_type != LEX_FIN) {
-        throw curr_lex;
+        throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
     }
     
     int i = 0;
@@ -406,13 +441,13 @@ void Parser::P() {
     if (c_type == LEX_PROGRAM) {
         read_lex();
     } else {
-        throw curr_lex;
+        throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
     }
     D1(); 
     if (c_type == LEX_SEMICOLON) {
         read_lex();
     } else {
-        throw curr_lex;
+        throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
     }
     B();
 }
@@ -426,27 +461,27 @@ void Parser::D1() {
             D();
         }
     } else {
-        throw curr_lex;
+        throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
     }
 }
  
 void Parser::D() {
     if (c_type != LEX_ID) {
-        throw curr_lex;
+        throw Error <Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
     } else {
         st_double.push(c_val);
         read_lex();
         while (c_type == LEX_COMMA) {
             read_lex();
             if (c_type != LEX_ID) {
-                throw curr_lex;
+                throw Error <Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
             } else {
                 st_double.push(c_val);
                 read_lex();
             }
         }
         if (c_type != LEX_COLON) {
-            throw curr_lex;
+            throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
         } else {
             read_lex();
             if (c_type == LEX_INT) {
@@ -459,7 +494,7 @@ void Parser::D() {
                 dec(LEX_BOOL);
                 read_lex();
             } else {
-                throw curr_lex;
+                throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
             }
         } 
     }
@@ -476,10 +511,10 @@ void Parser::B() {
         if (c_type == LEX_END) {
             read_lex();
         } else {
-            throw curr_lex;
+            throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
     } else {
-        throw curr_lex;
+        throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
     }
 }
  
@@ -512,7 +547,7 @@ void Parser::S() {
                 poliz[pl2] = Lex(POLIZ_LABEL, poliz.size());
             }
         } else {
-            throw curr_lex;
+            throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
     
     // WHILE-DO operator:
@@ -532,7 +567,7 @@ void Parser::S() {
             poliz.push_back(Lex(POLIZ_GO));
             poliz[pl1] = Lex(POLIZ_LABEL, poliz.size());
         } else {
-            throw curr_lex;
+            throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
         st_lex.pop();
         if (!st_double.empty()) {
@@ -550,16 +585,16 @@ void Parser::S() {
                 poliz.push_back(Lex(POLIZ_ADDRESS, c_val));
                 read_lex();
             } else {
-                throw curr_lex;
+                throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
             }
             if (c_type == LEX_RPAREN) {
                 read_lex();
                 poliz.push_back(Lex(LEX_READ));
             } else {
-                throw curr_lex;
+                throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
             }
         } else {
-            throw curr_lex;
+            throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
     
     //WRITE operator:
@@ -573,10 +608,10 @@ void Parser::S() {
                 read_lex();
                 poliz.push_back(Lex(LEX_WRITE));
             } else {
-                throw curr_lex;
+                throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
             }
         } else {
-            throw curr_lex;
+            throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
     
     //ASSIGH operator:
@@ -590,7 +625,7 @@ void Parser::S() {
             eq_type();
             poliz.push_back(Lex(LEX_ASSIGN));
         } else {
-            throw curr_lex;
+            throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
     
     //REPEAT-UNTIL operator:
@@ -606,7 +641,7 @@ void Parser::S() {
             poliz.push_back(Lex(POLIZ_LABEL, pl4));
             poliz.push_back(Lex(POLIZ_FGO));
         } else {
-            throw curr_lex;
+            throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
         if (!st_double.empty()) {
             from_st(st_double, pl5);
@@ -679,7 +714,7 @@ void Parser::F() {
         read_lex();
     } else if (c_type == LEX_NOT) {
         read_lex(); 
-        F(); 
+        F();
         check_not();
     } else if (c_type == LEX_PLUS) {
         read_lex();
@@ -697,10 +732,10 @@ void Parser::F() {
         if (c_type == LEX_RPAREN) {
             read_lex();
         } else { 
-            throw curr_lex;
+            throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
     } else {
-        throw curr_lex;
+        throw Error <Lex> ("unexpected lexeme", curr_lex.get_string(), curr_lex);
     }
 }
  
@@ -710,7 +745,7 @@ void Parser::dec(type_of_lex type) {
     while (!st_double.empty()) {
         from_st(st_double, i);
         if (TID[i].get_declare()) {
-            throw "twice";
+            throw Error <Lex> ("identifier was twice declared", curr_lex.get_string(), curr_lex);
         } else {
             TID[i].put_declare();
             TID[i].put_type(type);
@@ -723,7 +758,7 @@ void Parser::check_id() {
     if (TID[(int)c_val].get_declare()) {     
         st_lex.push(TID[(int)c_val].get_type());
     } else {
-        throw "not declared";
+        throw Error <Lex> ("identifier not declared", curr_lex.get_string(), curr_lex);
     }
 }
 
@@ -736,7 +771,7 @@ void Parser::check_op() {
  
     if (op == LEX_PLUS || op == LEX_MINUS || op == LEX_TIMES || op == LEX_SLASH) {
         if (t1 == LEX_BOOL || t2 == LEX_BOOL) {
-            throw "wrong types are in operation";
+            throw Error <Lex> ("wrong types are in operation", curr_lex.get_string(), curr_lex);
         } else if (t1 == LEX_REAL || t2 == LEX_REAL) {
             res = LEX_REAL;
         } else {
@@ -745,12 +780,12 @@ void Parser::check_op() {
     }
     if (op == LEX_OR || op == LEX_AND) {
         if (t1 != LEX_BOOL || t2 != LEX_BOOL) {
-            throw "wrong types are in operation";
+            throw Error <Lex> ("wrong types are in operation", curr_lex.get_string(), curr_lex);
         }  
     }
     
     if (t1 == LEX_BOOL || t2 == LEX_BOOL) { 
-        throw "wrong types are in operation";
+        throw Error <Lex> ("wrong types are in operation", curr_lex.get_string(), curr_lex);
     }
     st_lex.push(res);
     poliz.push_back(Lex(op));
@@ -758,7 +793,7 @@ void Parser::check_op() {
 
 void Parser::check_not() {
     if (st_lex.top() != LEX_BOOL) {
-        throw "wrong type is in not";
+        throw Error <Lex> ("wrong type is in NOT operation", curr_lex.get_string(), curr_lex);
     } else {
         poliz.push_back(Lex(LEX_NOT));
     }
@@ -766,18 +801,18 @@ void Parser::check_not() {
 
 void Parser::check_unary() {
     if (st_lex.top() == LEX_BOOL) {
-        throw "wrong type is in unary operation";
+        throw Error <Lex> ("wrong type is in unary operation", curr_lex.get_string(), curr_lex);
     }
 }
  
 void Parser::check_loop() {
     if (st_lex.empty()) {
-        throw "operator break - outside of loop";
+        throw Error <Lex> ("operator break outside of loop", curr_lex.get_string(), curr_lex);
     }
     if (st_lex.top() == LEX_WHILE || st_lex.top() == LEX_REPEAT) {
         st_lex.pop();
     } else {
-        throw "operator break - outside of loop";
+        throw Error <Lex> ("operator break outside of loop", curr_lex.get_string(), curr_lex);
     }
 }
  
@@ -785,40 +820,43 @@ void Parser::eq_type () {
     type_of_lex t;
     from_st(st_lex, t);
     if (t == LEX_BOOL && t != st_lex.top()) {
-        throw "wrong types are in :=";
+        throw Error <Lex> ("wrong types are in :=", curr_lex.get_string(), curr_lex);
     }
     st_lex.pop();
 }
  
 void Parser::eq_bool() {
     if (st_lex.top() != LEX_BOOL) {
-        throw "expression is not boolean";
+        throw Error <Lex> ("expression is not boolean", curr_lex.get_string(), curr_lex);
     }
     st_lex.pop ();
   }
   
 void Parser::check_id_in_read () {
     if (!TID[(int)c_val].get_declare()) {
-        throw "not declared";
+        throw Error <Lex> ("identifier not declared", curr_lex.get_string(), curr_lex);
     }
 }
-
 
 /* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> MAIN <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
 int main () {
     try {
         cout << "Input file name:" << endl;
-        char * testfile;
+        string testfile = string();
         cin >> testfile;
-        Parser P (testfile);
+        Parser P (testfile.c_str());
         P.analyze();
         return 0;
         
-    } catch (char c) {
-        cout << "unexpected symbol " << c << endl;
+    } catch (Error <char> E) {
+        cout << E.get_name() << ": " << E.get_obj() << " in " << E.get_str_num() << " string" << endl;
         return 1;
-    } catch (Lex l) {
-        cout << "unexpected lexeme" << l << endl;
+    } catch (Error <Lex> E) {
+         if (E.get_name() == "unexpected lexeme") {
+             cout << E.get_name() << ": " << E.get_obj() << "in " << E.get_str_num() << " string" << endl;
+         } else {
+             cout << E.get_name() << " in " << E.get_str_num() << " string" << endl;
+         }
         return 1;
     } catch (const char *source) {
         cout << source << endl;
