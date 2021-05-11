@@ -3,5 +3,5 @@ var
     x: bool;
 begin
     x := true;
-    write(-x)
+    write(-x)   {unary for bool}
 end@
