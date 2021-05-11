@@ -1,0 +1,9 @@
+program
+var 
+    b: real;
+begin
+    b := 60;
+    repeat 
+    b := b / 2     
+    write(b) {until missed}
+end@

@@ -1,0 +1,7 @@
+program
+var 
+    x: bool;
+begin
+    x := true;
+    write(-x)
+end@

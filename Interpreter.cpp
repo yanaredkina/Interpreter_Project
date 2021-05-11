@@ -54,20 +54,61 @@ public:
     }
 };
 
+struct number {
+    bool is_int;
+    union num {
+        int i;
+        double r;
+    } storage;
+};
+    
 class Lex {
 private:
-    type_of_lex t_lex;
-    double v_lex;
+    type_of_lex t_lex = LEX_NULL;
+    number v_lex;
     int str_lex;
 public:
-    Lex (type_of_lex t = LEX_NULL, double v = 0, int s = 0): t_lex(t), v_lex(v),  str_lex(s) {  
+    Lex () {
+         t_lex = LEX_NULL;
+         str_lex = 0;
+         v_lex = {true, {0}};
+    }
+    
+    Lex (type_of_lex t) {
+         t_lex = t;
+         str_lex = 0;
+         v_lex = {true, {0}};
+    }
+    
+    Lex (type_of_lex t, number n) {
+         t_lex = t;
+         str_lex = 0;
+         v_lex = n;
+    }
+    
+    Lex (type_of_lex t, int v) {
+         t_lex = t;
+         str_lex = 0;
+         v_lex = {true, {v}};  
+    }
+    
+    Lex (type_of_lex t, int v, int s) {
+         t_lex = t;
+         str_lex = s;
+         v_lex = {true, {v}}; 
+    }
+    
+    Lex (type_of_lex t, double v, int s) {
+        t_lex = t;
+        str_lex = s;
+        v_lex = {false, {.r = v}}; 
     }
     
     type_of_lex  get_type() const { 
     	  return t_lex; 
     }
     
-    int get_value() const { 
+    number get_value() const { 
     	  return v_lex; 
     }
     
@@ -86,7 +127,7 @@ private:
     bool declare;
     type_of_lex type;
     bool assign;
-    double value;
+    number value;
 public:
     Ident() { 
         declare = false; 
@@ -111,7 +152,7 @@ public:
       return assign; 
     }
     
-    double get_value() const { 
+    number get_value() const { 
       return value; 
     }
     
@@ -131,7 +172,7 @@ public:
       assign = true; 
     }
     
-    void put_value(double v) { 
+    void put_value(number v) { 
       value = v;
     }
     
@@ -266,11 +307,12 @@ Lex Scanner::get_lex() {
                 } else if (c == '{') { 
                     CS = COM;
                 } else if (c == ':' || c == '<' || c == '>') { 
-                    buf.push_back (c);
+                    buf.push_back(c);
                     CS = ALE; 
                 } else if (c == '@') {
+                    j = look("@", TD);
                     scan_char();
-                    return Lex(LEX_FIN, str_num);
+                    return Lex(LEX_FIN, j, str_num);
                 } else if (c == '!') {
                     buf.push_back(c);
                     CS = NEQ;
@@ -308,7 +350,7 @@ Lex Scanner::get_lex() {
                     count = 10;
                 } else {
                     ungetc(c, fp);
-                    if (f == 0) {
+                    if (count == 0) {
                         return Lex(LEX_INT, d, str_num);
                     }
                     return Lex(LEX_REAL, d + f, str_num);
@@ -349,14 +391,18 @@ Lex Scanner::get_lex() {
 
 ostream & operator<< (ostream &s, Lex l) {
     string t;
-    if (l.t_lex <= LEX_BREAK) {
-        t = Scanner::TW[l.t_lex];
+    if (l.t_lex == LEX_INT) {
+        s << '(' << "NUMB" << ',' << l.v_lex.storage.i << ");" << endl;
+        return s;
+    } else if (l.t_lex == LEX_REAL) {
+        s << '(' << "NUMB" << ',' << l.v_lex.storage.r << ");" << endl;
+        return s;
+    } else if (l.t_lex <= LEX_BREAK) {
+            t = Scanner::TW[l.t_lex];
     } else if (l.t_lex >= LEX_FIN && l.t_lex <= LEX_GEQ) {
-        t = Scanner::TD[l.t_lex - LEX_FIN];
-    } else if (l.t_lex == LEX_INT || l.t_lex == LEX_REAL) {
-        t = "NUMB";
+            t = Scanner::TD[l.t_lex - LEX_FIN];
     } else if (l.t_lex == LEX_ID) {
-        t = TID[l.v_lex].get_name();
+        t = TID[l.v_lex.storage.i].get_name();
     } else if (l.t_lex == LEX_UPLUS) {
         t = "Unary+";
     } else if (l.t_lex == LEX_UMINUS) {
@@ -372,7 +418,7 @@ ostream & operator<< (ostream &s, Lex l) {
     } else {
         throw Error<Lex>("unexpected lexeme", l.str_lex, l);
     }
-    s << '(' << t << ',' << l.v_lex << ");" << endl;
+    s << '(' << t << ',' << l.v_lex.storage.i << ");" << endl;
     return s;
 }
  
@@ -381,17 +427,19 @@ ostream & operator<< (ostream &s, Lex l) {
 
 template <class T, class T_EL>
 void from_st(T & st, T_EL & i) {
-    i = st.top(); st.pop();
+    i = st.top(); 
+    st.pop();
 }
 
 class Parser {
 private:
     Lex curr_lex;
     type_of_lex c_type;
-    double c_val;
+    number c_val;
     Scanner scan;
-    stack <double> st_double;
+    stack <number> st_number;
     stack <type_of_lex> st_lex;
+    int loop_flag = 0;
     void P();
     void D1();
     void D();
@@ -403,7 +451,7 @@ private:
     void F();
     void dec(type_of_lex type);
     void check_id();
-    void check_op();
+    void check_op(int j);
     void check_not();
     void eq_type();
     void eq_bool();
@@ -428,13 +476,14 @@ void Parser::analyze() {
         throw Error<Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
     }
     
+    cout << endl << "POLIZ:" << endl;
     int i = 0;
     for (Lex l: poliz) {
         cout << i << ": ";
         cout << l;
         i++;
     }
-    cout << endl << "Yes!!!" << endl;
+    cout << endl << " << Finish of cheking! >> " << endl;
 }
  
 void Parser::P() {
@@ -469,14 +518,14 @@ void Parser::D() {
     if (c_type != LEX_ID) {
         throw Error <Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
     } else {
-        st_double.push(c_val);
+        st_number.push(c_val);
         read_lex();
         while (c_type == LEX_COMMA) {
             read_lex();
             if (c_type != LEX_ID) {
                 throw Error <Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
             } else {
-                st_double.push(c_val);
+                st_number.push(c_val);
                 read_lex();
             }
         }
@@ -519,7 +568,8 @@ void Parser::B() {
 }
  
 void Parser::S() {
-    int pl0 = 0, pl1 = 0, pl2 = 0, pl3 = 0, pl4 = 0, pl5 = 0;
+    int pl0 = 0, pl1 = 0, pl2 = 0, pl3 = 0, pl4 = 0;
+    number pl5;
      
     // IF-THEN operator:
     if (c_type == LEX_IF) {
@@ -552,8 +602,8 @@ void Parser::S() {
     
     // WHILE-DO operator:
     } else if (c_type == LEX_WHILE) { 
+        ++loop_flag;
         pl0 = poliz.size();
-        st_lex.push(c_type);
         read_lex();
         E();
         eq_bool();
@@ -569,14 +619,15 @@ void Parser::S() {
         } else {
             throw Error<Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
-        st_lex.pop();
-        if (!st_double.empty()) {
-            from_st(st_double, pl5);
-            poliz[pl5] = Lex(POLIZ_LABEL, poliz.size());
+        if (!st_number.empty()) {
+            from_st(st_number, pl5);
+            poliz[pl5.storage.i] = Lex(POLIZ_LABEL, poliz.size());
         }
+        --loop_flag;
     
     // READ operator:
-    } else if (c_type == LEX_READ) { 
+    } else if (c_type == LEX_READ) {
+        int j = c_val.storage.i;
         read_lex();
         if (c_type == LEX_LPAREN) {
             read_lex();
@@ -589,7 +640,7 @@ void Parser::S() {
             }
             if (c_type == LEX_RPAREN) {
                 read_lex();
-                poliz.push_back(Lex(LEX_READ));
+                poliz.push_back(Lex(LEX_READ, j));
             } else {
                 throw Error<Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
             }
@@ -599,6 +650,7 @@ void Parser::S() {
     
     //WRITE operator:
     } else if (c_type == LEX_WRITE) {
+        int j = c_val.storage.i;
         read_lex();
         if (c_type == LEX_LPAREN) {
             read_lex();
@@ -606,7 +658,7 @@ void Parser::S() {
             st_lex.pop(); // clearing steck
             if (c_type == LEX_RPAREN) {
                 read_lex();
-                poliz.push_back(Lex(LEX_WRITE));
+                poliz.push_back(Lex(LEX_WRITE, j));
             } else {
                 throw Error<Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
             }
@@ -620,18 +672,19 @@ void Parser::S() {
         poliz.push_back(Lex(POLIZ_ADDRESS, c_val));
         read_lex();
         if (c_type == LEX_ASSIGN) {
+            int j = c_val.storage.i;
             read_lex();
             E();
             eq_type();
-            poliz.push_back(Lex(LEX_ASSIGN));
+            poliz.push_back(Lex(LEX_ASSIGN, j));
         } else {
             throw Error<Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
     
     //REPEAT-UNTIL operator:
     } else if (c_type == LEX_REPEAT) {
+        ++loop_flag;
         pl4 = poliz.size();
-        st_lex.push(c_type);
         read_lex();
         S();
         if (c_type == LEX_UNTIL) {
@@ -643,14 +696,15 @@ void Parser::S() {
         } else {
             throw Error<Lex>("unexpected lexeme", curr_lex.get_string(), curr_lex);
         }
-        if (!st_double.empty()) {
-            from_st(st_double, pl5);
-            poliz[pl5] = Lex(POLIZ_LABEL, poliz.size());
+        if (!st_number.empty()) {
+            from_st(st_number, pl5);
+            poliz[pl5.storage.i] = Lex(POLIZ_LABEL, poliz.size());
         }
+        --loop_flag;
     
     } else if (c_type == LEX_BREAK) {
         check_loop();
-        st_double.push(poliz.size());
+        st_number.push({true, {(int)poliz.size()}});
         poliz.push_back(Lex());
         poliz.push_back(Lex(POLIZ_GO));
         read_lex();
@@ -664,30 +718,33 @@ void Parser::E() {
     E1();
     if (c_type == LEX_EQ  || c_type == LEX_LSS || c_type == LEX_GTR ||
         c_type == LEX_LEQ || c_type == LEX_GEQ || c_type == LEX_NEQ) {
+        int j = c_val.storage.i;
         st_lex.push(c_type);
         read_lex(); 
         E1(); 
-        check_op();
+        check_op(j);
     }
 }
  
 void Parser::E1() {
     T();
     while (c_type == LEX_PLUS || c_type == LEX_MINUS || c_type == LEX_OR) {
+        int j = c_val.storage.i;
         st_lex.push(c_type);
         read_lex();
         T();
-        check_op();
+        check_op(j);
     }
 }
  
 void Parser::T() {
     F();
     while (c_type == LEX_TIMES || c_type == LEX_SLASH || c_type == LEX_AND) {
+        int j = c_val.storage.i;
         st_lex.push(c_type);
         read_lex();
         F();
-        check_op();
+        check_op(j);
     }
 }
  
@@ -717,15 +774,17 @@ void Parser::F() {
         F();
         check_not();
     } else if (c_type == LEX_PLUS) {
+        int j = c_val.storage.i;
         read_lex();
         F();
         check_unary();
-        poliz.push_back(Lex(LEX_UPLUS));
+        poliz.push_back(Lex(LEX_UPLUS, j));
     } else if (c_type == LEX_MINUS) {
+        int j = c_val.storage.i;
         read_lex();
         F();
         check_unary();
-        poliz.push_back(Lex(LEX_UMINUS));
+        poliz.push_back(Lex(LEX_UMINUS, j));
     } else if (c_type == LEX_LPAREN) {
         read_lex(); 
         E();
@@ -741,28 +800,28 @@ void Parser::F() {
  
 
 void Parser::dec(type_of_lex type) {
-    int i;
-    while (!st_double.empty()) {
-        from_st(st_double, i);
-        if (TID[i].get_declare()) {
+    number n;
+    while (!st_number.empty()) {
+        from_st(st_number, n);
+        if (TID[n.storage.i].get_declare()) {
             throw Error<Lex>("identifier was twice declared", curr_lex.get_string(), curr_lex);
         } else {
-            TID[i].put_declare();
-            TID[i].put_type(type);
+            TID[n.storage.i].put_declare();
+            TID[n.storage.i].put_type(type);
         }
     }
 }
 
   
 void Parser::check_id() {
-    if (TID[(int)c_val].get_declare()) {     
-        st_lex.push(TID[(int)c_val].get_type());
+    if (TID[c_val.storage.i].get_declare()) {     
+        st_lex.push(TID[c_val.storage.i].get_type());
     } else {
         throw Error<Lex>("identifier not declared", curr_lex.get_string(), curr_lex);
     }
 }
 
-void Parser::check_op() {
+void Parser::check_op(int j) {
     type_of_lex t1, t2, op, res = LEX_BOOL;
  
     from_st(st_lex, t2);
@@ -788,7 +847,7 @@ void Parser::check_op() {
         throw Error<Lex>("wrong types are in operation", curr_lex.get_string(), curr_lex);
     }
     st_lex.push(res);
-    poliz.push_back(Lex(op));
+    poliz.push_back(Lex(op, j));
 }
 
 void Parser::check_not() {
@@ -806,12 +865,7 @@ void Parser::check_unary() {
 }
  
 void Parser::check_loop() {
-    if (st_lex.empty()) {
-        throw Error<Lex>("operator break outside of loop", curr_lex.get_string(), curr_lex);
-    }
-    if (st_lex.top() == LEX_WHILE || st_lex.top() == LEX_REPEAT) {
-        st_lex.pop();
-    } else {
+    if (loop_flag == 0) {
         throw Error<Lex>("operator break outside of loop", curr_lex.get_string(), curr_lex);
     }
 }
@@ -833,11 +887,10 @@ void Parser::eq_bool() {
   }
   
 void Parser::check_id_in_read () {
-    if (!TID[(int)c_val].get_declare()) {
+    if (!TID[c_val.storage.i].get_declare()) {
         throw Error<Lex>("identifier not declared", curr_lex.get_string(), curr_lex);
     }
 }
-
  
 class Executer {
 public:
@@ -846,170 +899,296 @@ public:
  
 void Executer::execute(vector<Lex> & poliz) {
     Lex pc_el;
-    stack <double> args;
+    stack <number> args;
     int index = 0;
     int size = poliz.size();
-    double i, j;
+    number n, m;
+    
+    cout << endl << " << Results of executing >> " << endl;
+    
     while (index < size) {
         pc_el = poliz[index];
         switch (pc_el.get_type()) {
             case LEX_TRUE:
             case LEX_FALSE:
-            case LEX_INT:
             case LEX_REAL:
+            case LEX_INT:
             case POLIZ_ADDRESS:
             case POLIZ_LABEL:
                 args.push(pc_el.get_value());
                 break;
- 
+                
             case LEX_ID:
-                i = pc_el.get_value();
-                if (TID[i].get_assign()) {
-                  args.push(TID[i].get_value());
+                n = pc_el.get_value();
+                if (TID[n.storage.i].get_assign()) {
+                  args.push(TID[n.storage.i].get_value());
                   break;
                 } else {
                   throw "POLIZ: indefinite identifier";
                 }
               
             case LEX_NOT:
-                from_st(args, i);
-                args.push(!i);
+                from_st(args, n);
+                args.push({true, {!n.storage.i}});
                 break;
                 
             case LEX_UPLUS:
                 break;
                     
             case LEX_UMINUS:
-                from_st(args, i);
-                if (i == 0) {
-                    args.push(i);
+                from_st(args, n);
+                if (n.is_int) {
+                    if (n.storage.i == 0) {
+                        args.push(n);
+                    } else {
+                        args.push({true, {-n.storage.i}});
+                    }
                 } else {
-                    args.push(-i);
+                    if (n.storage.r == 0) {
+                        args.push(n);
+                    } else {
+                        args.push({false, {.r = -n.storage.r}});
+                    }
                 }
                 break;
  
             case LEX_OR:
-                from_st(args, i); 
-                from_st(args, j);
-                args.push(j || i);
+                from_st(args, n); 
+                from_st(args, m);
+                args.push({true, {m.storage.i || n.storage.i}});
                 break;
  
             case LEX_AND:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(j && i);
+                from_st(args, n);
+                from_st(args, m);
+                args.push({true, {m.storage.i && n.storage.i}});
                 break;
  
             case POLIZ_GO:
-                from_st(args, i);
-                index = i - 1;
+                from_st(args, n);
+                index = n.storage.i - 1;
                 break;
  
             case POLIZ_FGO:
-                from_st(args, i);
-                from_st(args, j);
-                if (!j) {
-                    index = i - 1;
+                from_st(args, n);
+                from_st(args, m);
+                if (!m.storage.i) {
+                    index = n.storage.i - 1;
                 }
                 break;
  
             case LEX_WRITE:
-                from_st(args, j);
-                cout << j << endl;
+                from_st(args, m);
+                if (m.is_int) {
+                    cout << m.storage.i << endl;
+                } else {
+                    cout << m.storage.r << endl;
+                }
                 break;
  
             case LEX_READ:
-                double k;
-                from_st(args, i);
-                if (TID[i].get_type() == LEX_INT || TID[i].get_type() == LEX_REAL) {
-                    cout << "Input value for " << TID[i].get_name() << endl;
-                    cin >> k;
+                number k;
+                from_st(args, n);
+                if (TID[n.storage.i].get_type() == LEX_INT) {
+                    cout << "Input int value for " << TID[n.storage.i].get_name() << endl;
+                    int x;
+                    cin >> x;
+                    k = {true, {x}};
+                } else if (TID[n.storage.i].get_type() == LEX_REAL) {
+                    cout << "Input real value for " << TID[n.storage.i].get_name() << endl;
+                    double x;
+                    cin >> x;
+                    k = {false, {.r = x}};
                 } else {
                     string j;
+                    int x;
                     while (1) {
-                        cout << "Input boolean value (true or false) for " << TID[i].get_name() << endl;
+                        cout << "Input boolean value (true or false) for " << TID[n.storage.i].get_name() << endl;
                         cin >> j;
                         if (j != "true" && j != "false") {
                             cout << "Error in input:true/false" << endl;
                             continue;
                         }
-                        k = (j == "true") ? 1 : 0;
+                        x = (j == "true") ? 1 : 0;
+                        k = {true, {x}};
                         break;
                     }
                 }
-                TID[i].put_value(k);
-                TID[i].put_assign();
+                TID[n.storage.i].put_value(k);
+                TID[n.storage.i].put_assign();
                 break;
  
             case LEX_PLUS:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(i + j);
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    args.push({true, {m.storage.i + n.storage.i}});
+                } else if (n.is_int && !m.is_int) {
+                    args.push({false, {.r = m.storage.r + n.storage.i}});
+                } else if (m.is_int && !n.is_int) {
+                    args.push({false, {.r = m.storage.i + n.storage.r}});
+                } else {
+                    args.push({false, {.r = m.storage.r + n.storage.r}});
+                }
                 break;
  
             case LEX_TIMES:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(i * j);
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    args.push({true, {m.storage.i * n.storage.i}});
+                } else if (n.is_int && !m.is_int) {
+                    args.push({false, {.r = m.storage.r * n.storage.i}});
+                } else if (m.is_int && !n.is_int) {
+                    args.push({false, {.r = m.storage.i * n.storage.r}});
+                } else {
+                    args.push({false, {.r = m.storage.r * n.storage.r}});
+                }
                 break;
  
             case LEX_MINUS:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(j - i);
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    args.push({true, {m.storage.i - n.storage.i}});
+                } else if (n.is_int && !m.is_int) {
+                    args.push({false, {.r = m.storage.r - n.storage.i}});
+                } else if (m.is_int && !n.is_int) {
+                    args.push({false, {.r = m.storage.i - n.storage.r}});
+                } else {
+                    args.push({false, {.r = m.storage.r - n.storage.r}});
+                }
                 break;
  
             case LEX_SLASH:
-                from_st(args, i);
-                from_st(args, j);
-                if (i == 0) {                   
-                    throw "POLIZ:divide by zero";
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    if (n.storage.i == 0) {
+                        throw "POLIZ:divide by zero";
+                    } else {
+                        args.push({true, {m.storage.i / n.storage.i}});
+                    }
+                } else if (n.is_int && !m.is_int) {
+                    if (n.storage.i == 0) {
+                       throw "POLIZ:divide by zero"; 
+                    } else {
+                        args.push({false, {.r = m.storage.r / n.storage.i}});
+                    }
+                } else if (m.is_int && !n.is_int) {
+                    if (n.storage.r == 0) {
+                        throw "POLIZ:divide by zero"; 
+                    } else {
+                        args.push({false, {.r = m.storage.i / n.storage.r}});
+                    }
                 } else {
-                    args.push(j / i);
-                    break;
+                    if (n.storage.r == 0) {
+                        throw "POLIZ:divide by zero"; 
+                    } else {
+                        args.push({false, {.r = m.storage.r / n.storage.r}});
+                    }
                 }
+                break;
  
             case LEX_EQ:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(i == j);
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    args.push({true, {m.storage.i == n.storage.i}});
+                } else if (n.is_int && !m.is_int) {
+                    args.push({true, {m.storage.r == n.storage.i}});
+                } else if (m.is_int && !n.is_int) {
+                    args.push({true, {m.storage.i == n.storage.r}});
+                } else {
+                    args.push({true, {m.storage.r == n.storage.r}});
+                }
                 break;
  
             case LEX_LSS:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(j < i);
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    args.push({true, {m.storage.i < n.storage.i}});
+                } else if (n.is_int && !m.is_int) {
+                    args.push({true, {m.storage.r < n.storage.i}});
+                } else if (m.is_int && !n.is_int) {
+                    args.push({true, {m.storage.i < n.storage.r}});
+                } else {
+                    args.push({true, {m.storage.r < n.storage.r}});
+                }
                 break;
  
             case LEX_GTR:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(j > i);
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    args.push({true, {m.storage.i > n.storage.i}});
+                } else if (n.is_int && !m.is_int) {
+                    args.push({true, {m.storage.r > n.storage.i}});
+                } else if (m.is_int && !n.is_int) {
+                    args.push({true, {m.storage.i > n.storage.r}});
+                } else {
+                    args.push({true, {m.storage.r > n.storage.r}});
+                }
                 break;
  
             case LEX_LEQ:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(j <= i);
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    args.push({true, {m.storage.i <= n.storage.i}});
+                } else if (n.is_int && !m.is_int) {
+                    args.push({true, {m.storage.r <= n.storage.i}});
+                } else if (m.is_int && !n.is_int) {
+                    args.push({true, {m.storage.i <= n.storage.r}});
+                } else {
+                    args.push({true, {m.storage.r <= n.storage.r}});
+                }
                 break;
- 
+            
             case LEX_GEQ:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(j >= i);
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    args.push({true, {m.storage.i >= n.storage.i}});
+                } else if (n.is_int && !m.is_int) {
+                    args.push({true, {m.storage.r >= n.storage.i}});
+                } else if (m.is_int && !n.is_int) {
+                    args.push({true, {m.storage.i >= n.storage.r}});
+                } else {
+                    args.push({true, {m.storage.r >= n.storage.r}});
+                }
                 break;
  
             case LEX_NEQ:
-                from_st(args, i);
-                from_st(args, j);
-                args.push(j != i);
+                from_st(args, n);
+                from_st(args, m);
+                if (n.is_int && m.is_int) {
+                    args.push({true, {m.storage.i != n.storage.i}});
+                } else if (n.is_int && !m.is_int) {
+                    args.push({true, {m.storage.r != n.storage.i}});
+                } else if (m.is_int && !n.is_int) {
+                    args.push({true, {m.storage.i != n.storage.r}});
+                } else {
+                    args.push({true, {m.storage.r != n.storage.r}});
+                }
                 break;
  
             case LEX_ASSIGN:
-                from_st(args, i);
-                from_st(args, j);
-                TID[j].put_value(i);
-                TID[j].put_assign(); 
+                from_st(args, n);
+                from_st(args, m);
+                if (TID[m.storage.i].get_type() == LEX_INT && n.is_int) {
+                    TID[m.storage.i].put_value(n);
+                } else if ((TID[m.storage.i].get_type() == LEX_INT && !n.is_int)) {
+                    TID[m.storage.i].put_value({true, {(int)n.storage.r}});
+                } else if ((TID[m.storage.i].get_type() == LEX_REAL && n.is_int)) {
+                    TID[m.storage.i].put_value({false, {.r = (double)n.storage.i}});
+                } else if ((TID[m.storage.i].get_type() == LEX_REAL && !n.is_int)) {
+                    TID[m.storage.i].put_value(n);
+                } else {
+                    throw "POLIZ: unexpected elem";
+                }
+                TID[m.storage.i].put_assign(); 
                 break;
  
             default:
@@ -1017,7 +1196,7 @@ void Executer::execute(vector<Lex> & poliz) {
         }
         ++index;
     };
-    cout << "Finish of executing!" << endl;
+    cout << endl << " << Finish of executing! >> " << endl;
 }
  
 class Interpretator {

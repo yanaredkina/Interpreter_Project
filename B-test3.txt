@@ -1,0 +1,10 @@
+program
+var 
+    y: real;
+begin
+    y := 1;
+    while (y < 24) do 
+        y := y + 1;
+    break; {break outside of loop}
+    write(y)
+end@

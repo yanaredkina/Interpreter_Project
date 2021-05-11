@@ -1,0 +1,8 @@
+program
+var 
+    a, b: int;
+begin
+    a := 10;
+    b := a / 0; {divided by zero}
+    write(b)
+end@

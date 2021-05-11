@@ -1,8 +1,0 @@
-program
-var 
-    a: real;
-begin
-    read(a);
-    a := -a;
-    write(a)
-end@

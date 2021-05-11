@@ -1,0 +1,11 @@
+program
+var 
+    a, b: real,
+    c: int;
+begin
+    read(a);
+    read(b);
+    c := a; {result is INT}
+    write(c);
+    write (b + c) {result is REAL}
+end@

@@ -1,0 +1,12 @@
+program
+var 
+    y: real;
+begin
+    y := 1;
+    while (true) do 
+    begin
+        y := y + 1;
+        if y > 24 then break
+    end;
+    write(y)
+end@

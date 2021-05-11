@@ -1,0 +1,10 @@
+program
+var$            {unknown symbol $}
+    b: real;
+begin
+    b := 60;
+    repeat 
+    b := b / 2
+    until b < 10;
+    write(b)
+end@
