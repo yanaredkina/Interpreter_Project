@@ -1,5 +1,5 @@
 program
-var$            {unknown symbol $}
+var$         {unknown symbol $}
     b: real;
 begin
     b := 60;

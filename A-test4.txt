@@ -6,7 +6,7 @@ begin
     while (true) do 
     begin
         y := y + 1;
-        if y > 24 then break
+        if y > 24 then break 
     end;
     write(y)
 end@

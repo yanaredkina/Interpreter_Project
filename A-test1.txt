@@ -1,6 +1,6 @@
 program
 var 
-    b: real;
+    b: int;
 begin
     b := 60;
     repeat 
