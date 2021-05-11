@@ -2,3 +2,6 @@
 *.pages
 Interpreter
 *.o
+*.pdf
+*.jpg
+*.drawio
